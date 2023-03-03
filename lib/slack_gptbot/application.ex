@@ -14,7 +14,8 @@ defmodule SlackGptbot.Application do
         scheme: String.to_atom(System.get_env("BD_SCHEME")),
         host: String.to_atom(System.get_env("BD_HOST")),
         options: [port: String.to_integer(System.get_env("BD_PORT"))]
-      }
+      },
+      {SlackGptbot.Bot, []}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

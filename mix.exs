@@ -23,7 +23,8 @@ defmodule SlackGptbot.MixProject do
   defp deps do
     [
       {:bandit, ">= 0.6.9"},
-      {:jason, "~> 1.4"}
+      {:jason, "~> 1.4"},
+      {:req, "~> 0.3"}
     ]
   end
 end
