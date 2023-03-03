@@ -37,7 +37,9 @@ defmodule SlackGptbot.Bot do
         {:noreply, state}
       {true, :someone_post} ->
         # 他者発言
-        Slack.send_reaction(channel, "eyes", get_in(params, ["event", "ts"]))
+        # - 待ち時間があるので先にリアクションを送る
+        # - ↑リアクションでSlackがやや見ずらくなるのでコメントアウト
+        # Slack.send_reaction(channel, "eyes", get_in(params, ["event", "ts"]))
         state = Map.update!(state, context, & ChatGPT.add_user_message(&1, message))
         bot_message = ChatGPT.get_message(state[context])
         Slack.send_message(bot_message, channel, ts)
