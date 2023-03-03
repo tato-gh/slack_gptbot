@@ -8,8 +8,13 @@ defmodule SlackGptbot.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Starts a worker by calling: SlackGptbot.Worker.start_link(arg)
-      # {SlackGptbot.Worker, arg}
+      {
+        Bandit,
+        plug: SlackGptbot.Plug,
+        scheme: String.to_atom(System.get_env("BD_SCHEME")),
+        host: String.to_atom(System.get_env("BD_HOST")),
+        options: [port: String.to_integer(System.get_env("BD_PORT"))]
+      }
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
