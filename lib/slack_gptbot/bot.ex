@@ -3,6 +3,10 @@ defmodule SlackGptbot.Bot do
 
   alias SlackGptbot.API.{ChatGPT, Slack}
 
+  # 会話保持の上限
+  @limit_num_conversations 1000
+  @limit_num_dates 90
+
   def start_link([]) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
@@ -30,6 +34,11 @@ defmodule SlackGptbot.Bot do
         # 開始
         Slack.send_reaction(channel, "robot_face", ts)
         state = Map.put_new(state, context, ChatGPT.init_system_message(message))
+        # 10回に1回程度の頻度でデータを掃除
+        state =
+          if :rand.uniform(10) == 1,
+            do: remove_expired_conversation(state),
+            else: state
         {:noreply, state}
       {true, :bot_maybe_myself} ->
         # 自身発言
@@ -84,5 +93,23 @@ defmodule SlackGptbot.Bot do
 
   defp fetch_message_kind(_) do
     :someone_post
+  end
+
+  defp remove_expired_conversation(state) do
+    current_time = DateTime.now!("Etc/UTC")
+
+    state
+    |> Enum.sort_by(fn {{_, ts}, _} -> ts end, :desc)
+    |> Enum.slice(0, @limit_num_conversations)
+    |> Enum.reverse()
+    |> Enum.drop_while(fn {{_, ts}, _} ->
+      [ts_unix, _] = String.split(ts, ".")
+      message_time = DateTime.from_unix!(String.to_integer(ts_unix))
+      num_dates =
+        DateTime.diff(current_time, message_time)
+        |> Kernel./(60 * 60 * 24)
+      num_dates >= @limit_num_dates
+    end)
+    |> Map.new()
   end
 end
