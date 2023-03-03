@@ -39,9 +39,54 @@ defmodule SlackGptbot.API.ChatGPT do
   end
 
   defp build_post_data(messages) do
+    # パラメータ
+    # refs: https://platform.openai.com/docs/api-reference/chat/create
+    #
+    # TODO: 要確認
+    #
+    # temperature:
+    # - [0, 2.0]
+    # - デフォルトは1
+    # - 小：より関連性の高い単語が選ばれやすくなる
+    # - 大：より多様な単語が選ばれやすくなる
+    #
+    # top_p:
+    # - [0, 1.0]
+    # - デフォルトは1
+    # - 小：より上位にくる単語のみが選択されるため、生成される文章の多様ではなくなる
+    # - 大：より多様な単語が選択されるため、生成される文章はより多様になる
+    # - temperatureとの併用はNG
+    #
+    # n:
+    # - デフォルトは1
+    # - 候補数
+    #
+    # stop:
+    # - string or list
+    # - デフォルトはなし
+    # - トークンの生成を停止するシーケンスを最大 4 つまで指定できる
+    #
+    # presence_penalty:
+    # - [-2.0, 2.0]
+    # - デフォルトは0
+    # - 大：既に生成された文章の単語やフレーズにペナルティを与え、多様な文章を促す
+    # - 小：ペナルティが小さい
+    #
+    # frequency_penalty:
+    # - [-2.0, 2.0]
+    # - デフォルトは0
+    # - 大：既に生成された文章の頻度にペナルティを与え、同じ行を繰り返す可能性を減らす
+    # - 小：ペナルティが小さい
+    #
     %{
       model: "gpt-3.5-turbo",
-      messages: messages
+      messages: messages,
+      temperature: 0.2,
+      # top_p: 0.2,
+      n: 1,
+      presence_penalty: 0.1,
+      frequency_penalty: 0.1
+      # stop: "。",
     }
   end
 

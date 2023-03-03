@@ -1,6 +1,6 @@
 # SlackGptbot
 
-GPTChat API BOT for Slack Application (my practice to use chatgpt api).
+ChatGPT bot for Slack Application (my practice to use chatgpt api).
 
 
 ## Environment
