@@ -71,21 +71,23 @@ defmodule SlackGptbot.API.ChatGPT do
     # - デフォルトは0
     # - 大：既に生成された文章の単語やフレーズにペナルティを与え、多様な文章を促す
     # - 小：ペナルティが小さい
+    # - NOTE: マイナスにしたらtimeoutした
     #
     # frequency_penalty:
     # - [-2.0, 2.0]
     # - デフォルトは0
     # - 大：既に生成された文章の頻度にペナルティを与え、同じ行を繰り返す可能性を減らす
     # - 小：ペナルティが小さい
+    # - NOTE: マイナスにしたらtimeoutした
     #
     %{
       model: "gpt-3.5-turbo",
       messages: messages,
-      temperature: 0.2,
-      # top_p: 0.2,
+      # temperature: Enum.random([0.2, 0.6, 1.2, 1.8]),
+      top_p: Enum.random([0.2, 0.4, 0.6, 0.8]),
       n: 1,
-      presence_penalty: 0.1,
-      frequency_penalty: 0.1
+      presence_penalty: Enum.random([0.1, 0.5, 1.0, 1.5]),
+      frequency_penalty: Enum.random([0.1, 0.5, 1.0, 1.5])
       # stop: "。",
     }
   end
