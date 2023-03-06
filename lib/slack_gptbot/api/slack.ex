@@ -33,7 +33,7 @@ defmodule SlackGptbot.API.Slack do
 
   defp headers do
     [
-      "Content-type": "application/json",
+      "Content-type": "application/json; charset=UTF-8",
       Authorization: "Bearer #{slack_bot_token()}"
     ]
   end
