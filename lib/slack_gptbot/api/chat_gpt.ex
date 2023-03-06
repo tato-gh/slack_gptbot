@@ -9,16 +9,44 @@ defmodule SlackGptbot.API.ChatGPT do
     messages ++ [%{"role" => "assistant", "content" => message}]
   end
 
+  @doc """
+  ユーザー発言に対する返信内容とメッセージ群を返す
+  """
+  def get_reply_to_user_message(messages, message, config)
+
+  def get_reply_to_user_message(messages, "!" <> _rest, _config), do: {nil, messages}
+
+  def get_reply_to_user_message(messages, "コメント" <> _rest, _config), do: {nil, messages}
+
+  def get_reply_to_user_message([system | _rest], "---", _config), do: {nil, [system]}
+
+  def get_reply_to_user_message([system | _rest], "リセット", _config), do: {nil, [system]}
+
+  def get_reply_to_user_message([system | _rest], "---" <> rest, config) do
+    new_messages = add_user_message([system], rest)
+    reply = get_message(new_messages, config)
+
+    {reply, new_messages}
+  end
+
+  def get_reply_to_user_message(messages, message, config) do
+    new_messages = add_user_message(messages, message)
+    reply = get_message(new_messages, config)
+
+    {reply, new_messages}
+  end
+
   def add_user_message(messages, message) do
     messages ++ [%{"role" => "user", "content" => message}]
   end
 
-  def get_message(messages) do
-    data = build_post_data(messages)
+  def get_message(messages, config) do
+    data = build_post_data(messages, config)
 
     case req_post(data) do
       {:ok, response} ->
         response.body
+        |> then(fn item -> IO.inspect(item, label: "DEBUG"); item end)
         |> Map.get("choices")
         # 設定によって回答候補をいくつか取れる。デフォルトは1なのでfirstしている
         |> List.first()
@@ -35,11 +63,37 @@ defmodule SlackGptbot.API.ChatGPT do
       method: :post,
       headers: headers(),
       body: Jason.encode!(data),
-      receive_timeout: 30_000
+      receive_timeout: 60_000
     )
   end
 
-  defp build_post_data(messages) do
+  def build_config("loose" <> _message) do
+    %{
+      temperature: 1.0,
+      presence_penalty: 0.6,
+      frequency_penalty: 0.6
+    }
+  end
+
+  def build_config("tight" <> _message) do
+    %{
+      temperature: 0.6,
+      presence_penalty: 0,
+      frequency_penalty: 0
+    }
+  end
+
+  def build_config(_message) do
+    # use default
+    %{
+      # temperature: 1.0,
+      # top_p: 1.0,
+      # presence_penalty: 0,
+      # frequency_penalty: 0
+    }
+  end
+
+  defp build_post_data(messages, config) do
     # パラメータ
     # refs: https://platform.openai.com/docs/api-reference/chat/create
     #
@@ -84,13 +138,10 @@ defmodule SlackGptbot.API.ChatGPT do
     %{
       model: "gpt-3.5-turbo",
       messages: messages,
-      # temperature: Enum.random([0.2, 0.6, 1.2, 1.8]),
-      top_p: Enum.random([0.2, 0.4, 0.6, 0.8]),
       n: 1,
-      presence_penalty: Enum.random([0.1, 0.5, 1.0, 1.5]),
-      frequency_penalty: Enum.random([0.1, 0.5, 1.0, 1.5])
       # stop: "。",
     }
+    |> Map.merge(config)
   end
 
   defp headers do

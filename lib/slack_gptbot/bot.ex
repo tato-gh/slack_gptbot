@@ -3,7 +3,7 @@ defmodule SlackGptbot.Bot do
 
   alias SlackGptbot.API.{ChatGPT, Slack}
 
-  # 会話保持の上限
+  # 話題保持の上限
   @limit_num_conversations 1000
   @limit_num_dates 90
 
@@ -13,17 +13,24 @@ defmodule SlackGptbot.Bot do
 
   @impl GenServer
   def init(_args) do
+    # TODO: リソースの構造を整理して切り出し検討
     {:ok, %{}}
   end
 
   @impl GenServer
   def handle_cast({:message, params}, state) do
-    # 仕様は暫定
     # - 開始：自身宛にメンションかつ未作成の話題(ts)。リアクションのみ返す
     # - 蓄積：作成済みの話題かつ自身の発言
-    # - 反応：作成済みの話題かつ他者の発言
+    # - 発言：作成済みの話題かつ他者の発言
     # - その他仕様
-    #   - メンテナンス：話題を最大90日までとして消していく。開始時の数回に一回程度動く。その他、GenServerがとまると全部消える
+    #   - データはプロセス保持：GenServerプロセスが消えると話題はすべて消える。
+    #   - 話題掃除：開始時、10回に1回程度動く。
+    #   - 話題中で使えるメタ発言
+    #     - `!` で始まる発言を無視する
+    #     - `---` を指定すると一区切りとして、それまでのassistant分を削除する
+    #   - 開始時に指定できるメタ設定
+    #     - loose/tight ゆれの許容程度
+    #
     {channel, ts} = context = fetch_context(params["event"])
     existing_context = if(state[context], do: true, else: false)
     message = fetch_text(params["event"])
@@ -33,25 +40,31 @@ defmodule SlackGptbot.Bot do
       {false, :mention} ->
         # 開始
         Slack.send_reaction(channel, "robot_face", ts)
-        state = Map.put_new(state, context, ChatGPT.init_system_message(message))
+        new_conversation = %{
+          "messages" => ChatGPT.init_system_message(message),
+          "config" => ChatGPT.build_config(message)
+        }
+        state = Map.put_new(state, context, new_conversation)
         # 10回に1回程度の頻度でデータを掃除
-        state =
-          if :rand.uniform(10) == 1,
-            do: remove_expired_conversation(state),
-            else: state
+        state = if :rand.uniform(10) == 1, do: remove_expired_conversation(state), else: state
         {:noreply, state}
       {true, :bot_maybe_myself} ->
         # 自身発言
-        state = Map.update!(state, context, & ChatGPT.add_assistant_message(&1, message))
+        messages = ChatGPT.add_assistant_message(get_in(state, [context, "messages"]), message)
+        state = put_in(state, [context, "messages"], messages)
         {:noreply, state}
       {true, :someone_post} ->
         # 他者発言
         # - 待ち時間があるので先にリアクションを送る
-        # - ↑リアクションでSlackがやや見ずらくなるのでコメントアウト
-        # Slack.send_reaction(channel, "eyes", get_in(params, ["event", "ts"]))
-        state = Map.update!(state, context, & ChatGPT.add_user_message(&1, message))
-        bot_message = ChatGPT.get_message(state[context])
-        Slack.send_message(bot_message, channel, ts)
+        current_messages = get_in(state, [context, "messages"])
+        config = get_in(state, [context, "config"])
+        {reply, messages} = ChatGPT.get_reply_to_user_message(current_messages, message, config)
+        if reply do
+          Slack.send_message(reply, channel, ts)
+        else
+          Slack.send_reaction(channel, "eyes", get_in(params, ["event", "ts"]))
+        end
+        state = put_in(state, [context, "messages"], messages)
         {:noreply, state}
       _ ->
         # Nothing to do
