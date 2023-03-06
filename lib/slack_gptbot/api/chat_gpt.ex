@@ -34,7 +34,8 @@ defmodule SlackGptbot.API.ChatGPT do
       url: "https://api.openai.com/v1/chat/completions",
       method: :post,
       headers: headers(),
-      body: Jason.encode!(data)
+      body: Jason.encode!(data),
+      receive_timeout: 30_000
     )
   end
 
