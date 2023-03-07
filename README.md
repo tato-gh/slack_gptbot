@@ -5,12 +5,12 @@ ChatGPT bot for Slack Application (my practice to use chatgpt api).
 
 ## Environment
 
-BD_SCHEMA: Bandit schema. http or https
-BD_HOST: Bandit host
-BD_PORT: Bandit port
-SLACK_SIGNING_SECRET: Slack Signing Secret
-SLACK_BOT_TOKEN: Slack Bot Token
-CHATGPT_TOKEN: ChatGPT Access Token
+- BD_SCHEMA: Bandit schema. http or https
+- BD_HOST: Bandit host
+- BD_PORT: Bandit port
+- SLACK_SIGNING_SECRET: Slack Signing Secret
+- SLACK_BOT_TOKEN: Slack Bot Token
+- CHATGPT_TOKEN: ChatGPT Access Token
 
 
 ## Slack上での使い方
