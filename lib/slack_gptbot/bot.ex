@@ -37,7 +37,7 @@ defmodule SlackGptbot.Bot do
     kind = fetch_message_kind(params["event"])
 
     case {existing_context, kind} do
-      {false, :mention} ->
+      {false, k} when k in [:mention, :im_first_message] ->
         # 開始
         Slack.send_reaction(channel, "robot_face", ts)
         new_conversation = %{
@@ -93,15 +93,23 @@ defmodule SlackGptbot.Bot do
     end
   end
 
-  defp fetch_message_kind(%{"type" => "app_mention"}) do
-    :mention
-  end
-
   defp fetch_message_kind(%{"bot_id" => _bot_id}) do
     # bot_idはAppIDとは異なる
     # AppIDを参照するならば`get_in(..., ["bot_profile" , "app_id"])`が必要
     # 現状ではbotに反応する必要はないのでbot_idがあれば無視する
     :bot_maybe_myself
+  end
+
+  defp fetch_message_kind(%{"type" => "app_mention"}) do
+    :mention
+  end
+
+  defp fetch_message_kind(%{"type" => "message", "channel_type" => "im", "thread_ts" => _}) do
+    :someone_post
+  end
+
+  defp fetch_message_kind(%{"type" => "message", "channel_type" => "im"}) do
+    :im_first_message
   end
 
   defp fetch_message_kind(_) do

@@ -46,7 +46,6 @@ defmodule SlackGptbot.API.ChatGPT do
     case req_post(data) do
       {:ok, response} ->
         response.body
-        |> then(fn item -> IO.inspect(item, label: "DEBUG"); item end)
         |> Map.get("choices")
         # 設定によって回答候補をいくつか取れる。デフォルトは1なのでfirstしている
         |> List.first()
