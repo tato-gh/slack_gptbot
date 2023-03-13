@@ -10,6 +10,16 @@ defmodule SlackGptbot.API.ChatGPT do
   end
 
   @doc """
+  初回のユーザー発言に対する返信内容を返す
+  """
+  def get_first_reply(message, config) do
+    messages = init_system_message(message)
+    reply = get_message(messages, config)
+
+    {reply, messages}
+  end
+
+  @doc """
   ユーザー発言に対する返信内容とメッセージ群を返す
   """
   def get_reply_to_user_message(messages, message, config)
@@ -66,29 +76,38 @@ defmodule SlackGptbot.API.ChatGPT do
     )
   end
 
-  def build_config("loose" <> _message) do
-    %{
-      temperature: 1.0,
-      presence_penalty: 0.6,
-      frequency_penalty: 0.6
+  def build_config("loose" <> message) do
+    {
+      %{
+        temperature: 1.0,
+        presence_penalty: 0.6,
+        frequency_penalty: 0.6
+      },
+      message
     }
   end
 
-  def build_config("tight" <> _message) do
-    %{
-      temperature: 0.6,
-      presence_penalty: 0,
-      frequency_penalty: 0
+  def build_config("tight" <> message) do
+    {
+      %{
+        temperature: 0.6,
+        presence_penalty: 0,
+        frequency_penalty: 0
+      },
+      message
     }
   end
 
-  def build_config(_message) do
+  def build_config(message) do
     # use default
-    %{
-      # temperature: 1.0,
-      # top_p: 1.0,
-      # presence_penalty: 0,
-      # frequency_penalty: 0
+    {
+      %{
+        # temperature: 1.0,
+        # top_p: 1.0,
+        # presence_penalty: 0,
+        # frequency_penalty: 0
+      },
+      message
     }
   end
 

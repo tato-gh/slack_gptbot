@@ -40,11 +40,10 @@ defmodule SlackGptbot.Bot do
       {false, k} when k in [:mention, :im_first_message] ->
         # 開始
         Slack.send_reaction(channel, "robot_face", ts)
-        new_conversation = %{
-          "messages" => ChatGPT.init_system_message(message),
-          "config" => ChatGPT.build_config(message)
-        }
-        state = Map.put_new(state, context, new_conversation)
+        {config, message} = ChatGPT.build_config(message)
+        {reply, messages} = ChatGPT.get_first_reply(message, config)
+        Slack.send_message(reply, channel, ts)
+        state = Map.put_new(state, context, %{"messages" => messages, "config" => config})
         # 10回に1回程度の頻度でデータを掃除
         state = if :rand.uniform(10) == 1, do: remove_expired_conversation(state), else: state
         {:noreply, state}
