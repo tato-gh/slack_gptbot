@@ -142,7 +142,7 @@ defmodule SlackGptbot.Bot do
   end
 
   defp make_channel_setting_from_channel_purpose(purpose) do
-    ~r{prompt:(?<prompt>.+?\n\n)}s
+    ~r{prompt:(?<prompt>.+?(\n\n|\z))}s
     |> Regex.named_captures(purpose)
     |> Kernel.||(%{})
     |> Enum.into(@default_channel_setting)

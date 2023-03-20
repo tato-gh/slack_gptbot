@@ -13,7 +13,7 @@ defmodule SlackGptbot.API.ChatGPT do
   """
   def get_first_reply(message, channel_prompt, config) do
     {user_prompt, user_message} = parse_first_message(message)
-    prompt = channel_prompt <> user_prompt
+    prompt = merge_prompt(channel_prompt, user_prompt)
     messages =
       init_system_message(prompt)
       |> add_user_message(user_message)
@@ -63,9 +63,8 @@ defmodule SlackGptbot.API.ChatGPT do
         # 設定によって回答候補をいくつか取れる。デフォルトは1なのでfirstしている
         |> List.first()
         |> get_in(["message", "content"])
-      {:error, _error} ->
-        # TODO
-        "Error !!!"
+      {:error, error} ->
+        "Error: #{error.message}"
     end
   end
 
@@ -75,7 +74,7 @@ defmodule SlackGptbot.API.ChatGPT do
       method: :post,
       headers: headers(),
       body: Jason.encode!(data),
-      receive_timeout: 120_000
+      receive_timeout: 300_000
     )
   end
 
@@ -112,6 +111,25 @@ defmodule SlackGptbot.API.ChatGPT do
       },
       message
     }
+  end
+
+  defp merge_prompt(channel_prompt, user_prompt) do
+    rows =
+      user_prompt
+      |> String.trim()
+      |> String.split("\n")
+      |> Enum.with_index(1)
+
+    Enum.reduce(rows, channel_prompt, fn {row, nth}, prompt ->
+      mark = "$#{nth}"
+      prompt
+      |> String.contains?(mark)
+      |> case do
+        true -> String.replace(prompt, mark, row)
+        false -> Enum.join([prompt, row], "\n")
+      end
+    end)
+    |> String.trim()
   end
 
   defp parse_first_message(message) do
