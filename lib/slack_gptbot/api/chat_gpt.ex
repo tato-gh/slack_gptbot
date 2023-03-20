@@ -114,19 +114,19 @@ defmodule SlackGptbot.API.ChatGPT do
   end
 
   defp merge_prompt(channel_prompt, user_prompt) do
-    rows =
+    words =
       user_prompt
       |> String.trim()
-      |> String.split("\n")
+      |> String.split(~r{[[:blank:]\n]})
       |> Enum.with_index(1)
 
-    Enum.reduce(rows, channel_prompt, fn {row, nth}, prompt ->
+    Enum.reduce(words, channel_prompt, fn {word, nth}, prompt ->
       mark = "$#{nth}"
       prompt
       |> String.contains?(mark)
       |> case do
-        true -> String.replace(prompt, mark, row)
-        false -> Enum.join([prompt, row], "\n")
+        true -> String.replace(prompt, mark, word)
+        false -> Enum.join([prompt, word], "\n")
       end
     end)
     |> String.trim()
