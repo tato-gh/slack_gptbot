@@ -12,6 +12,10 @@ defmodule SlackGptbot.Bot do
     "prompt" => "",
   }
 
+  # メンションなしでbotが動くチャンネル印
+  @bot_channel "bot-"
+
+
   def start_link([]) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
@@ -24,7 +28,8 @@ defmodule SlackGptbot.Bot do
 
   @impl GenServer
   def handle_cast({:message, params}, state) do
-    # - 開始：自身宛にメンションかつ未作成の話題(ts)。リアクションのみ返す
+    # - 開始：自身宛にメンションかつ未作成の話題(ts)。自分宛てのDM
+    #   - 例外として、チャンネル名が`bot-`で始まるならばメンションなしで対応する
     # - 蓄積：作成済みの話題かつ自身の発言
     # - 発言：作成済みの話題かつ他者の発言
     # - その他仕様
@@ -36,46 +41,86 @@ defmodule SlackGptbot.Bot do
     #   - 開始時に指定できるメタ設定
     #     - loose/tight ゆれの許容程度
     #
-    {channel, ts} = context = fetch_context(params["event"])
+    context = fetch_context(params["event"])
     existing_context = if(state[context], do: true, else: false)
     message = fetch_text(params["event"])
     kind = fetch_message_kind(params["event"])
 
     case {existing_context, kind} do
       {false, k} when k in [:mention, :im_first_message] ->
-        # 開始
-        Slack.send_reaction(channel, "robot_face", ts)
-        channel_setting =
-          Slack.get_channel_purpose(channel)
-          |> make_channel_setting_from_channel_purpose()
-        {config, message} = ChatGPT.build_config(message)
-        {reply, messages} = ChatGPT.get_first_reply(message, channel_setting["prompt"], config)
-        Slack.send_message(reply, channel, ts)
-        state = Map.put_new(state, context, %{"messages" => messages, "config" => config})
-        # 10回に1回程度の頻度でデータを掃除
+        state = start_conversation(state, context, message)
+        #   10回に1回程度の頻度でデータを掃除
         state = if :rand.uniform(10) == 1, do: remove_expired_conversation(state), else: state
         {:noreply, state}
+
       {true, :bot_maybe_myself} ->
-        # 自身発言
-        messages = ChatGPT.add_assistant_message(get_in(state, [context, "messages"]), message)
-        state = put_in(state, [context, "messages"], messages)
+        state = put_my_message(state, context, message)
         {:noreply, state}
+
       {true, :someone_post} ->
-        # 他者発言
-        # - 待ち時間があるので先にリアクションを送る
-        current_messages = get_in(state, [context, "messages"])
-        config = get_in(state, [context, "config"])
-        {reply, messages} = ChatGPT.get_reply_to_user_message(current_messages, message, config)
-        if reply do
-          Slack.send_message(reply, channel, ts)
-        else
-          Slack.send_reaction(channel, "eyes", get_in(params, ["event", "ts"]))
-        end
-        state = put_in(state, [context, "messages"], messages)
+        state = send_reply_by_post(state, context, message)
         {:noreply, state}
+
+      {false, :someone_first_message} ->
+        # 他者発言。ただし、bot用チャンネルなら会話をスタートする
+        state = start_conversation_if_bot_channel(state, context, message)
+        {:noreply, state}
+
       _ ->
         # Nothing to do
         {:noreply, state}
+    end
+  end
+
+  defp start_conversation(state, context, message) do
+    {channel, ts} = context
+    Slack.send_reaction(channel, "robot_face", ts)
+    channel_setting =
+      Slack.get_channel_purpose(channel)
+      |> make_channel_setting_from_channel_purpose()
+    {config, message} = ChatGPT.build_config(message)
+    {reply, messages} = ChatGPT.get_first_reply(message, channel_setting["prompt"], config)
+    Slack.send_message(reply, channel, ts)
+    Map.put_new(state, context, %{"messages" => messages, "config" => config})
+  end
+
+  defp put_my_message(state, context, message) do
+    messages = ChatGPT.add_assistant_message(get_in(state, [context, "messages"]), message)
+    put_in(state, [context, "messages"], messages)
+  end
+
+  defp send_reply_by_post(state, context, message) do
+    {channel, ts} = context
+    # 待ち時間があるので先にリアクションを送る
+    current_messages = get_in(state, [context, "messages"])
+    config = get_in(state, [context, "config"])
+    {reply, messages} = ChatGPT.get_reply_to_user_message(current_messages, message, config)
+    if reply do
+      Slack.send_message(reply, channel, ts)
+    end
+    put_in(state, [context, "messages"], messages)
+  end
+
+  defp start_conversation_if_bot_channel(state, context, message) do
+    {channel, _ts} = context
+    channel_key = {"channel", channel}
+    get_in(state, [channel_key, "bot"])
+    |> case do
+      true ->
+        start_conversation(state, context, message)
+      false ->
+        state # nothing to do
+      nil ->
+        # bot用チャンネル(@bot_channel)であればメンションなしで開始
+        channel_name = Slack.get_channel_name(channel)
+        String.starts_with?(channel_name, @bot_channel)
+        |> case do
+          true ->
+            state = Map.put_new(state, channel_key, %{"bot" => true})
+            start_conversation(state, context, message)
+          false ->
+            Map.put_new(state, channel_key, %{"bot" => false})
+        end
     end
   end
 
@@ -111,16 +156,20 @@ defmodule SlackGptbot.Bot do
     :mention
   end
 
-  defp fetch_message_kind(%{"type" => "message", "channel_type" => "im", "thread_ts" => _}) do
-    :someone_post
-  end
-
   defp fetch_message_kind(%{"type" => "message", "channel_type" => "im"}) do
     :im_first_message
   end
 
-  defp fetch_message_kind(_) do
+  defp fetch_message_kind(%{"type" => "message", "thread_ts" => _}) do
     :someone_post
+  end
+
+  defp fetch_message_kind(%{"type" => "message"}) do
+    :someone_first_message
+  end
+
+  defp fetch_message_kind(_) do
+    :unknown
   end
 
   defp remove_expired_conversation(state) do
@@ -140,6 +189,8 @@ defmodule SlackGptbot.Bot do
     end)
     |> Map.new()
   end
+
+  defp make_channel_setting_from_channel_purpose(nil), do: @default_channel_setting
 
   defp make_channel_setting_from_channel_purpose(purpose) do
     ~r{prompt:(?<prompt>.+?(\n\n|\z))}s

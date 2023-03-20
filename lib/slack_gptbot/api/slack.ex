@@ -25,13 +25,23 @@ defmodule SlackGptbot.API.Slack do
   def get_channel_purpose(channel) do
     req_get(
       "https://slack.com/api/conversations.info",
-      %{
-        channel: channel,
-      }
+      %{channel: channel}
     )
     |> case do
       {:ok, response} ->
         get_in(response.body, ["channel", "purpose", "value"])
+      _ -> ""
+    end
+  end
+
+  def get_channel_name(channel) do
+    req_get(
+      "https://slack.com/api/conversations.info",
+      %{channel: channel}
+    )
+    |> case do
+      {:ok, response} ->
+        get_in(response.body, ["channel", "name"])
       _ -> ""
     end
   end
