@@ -79,8 +79,13 @@ defmodule SlackGptbot.Bot do
       Slack.get_channel_purpose(channel)
       |> make_channel_setting_from_channel_purpose()
     {config, message} = ChatGPT.build_config(message)
-    {reply, messages} = ChatGPT.get_first_reply(message, channel_setting["prompt"], config)
-    Slack.send_message(reply, channel, ts)
+    messages = ChatGPT.get_first_messages(message, channel_setting["prompt"])
+    Task.start(fn ->
+      reply = ChatGPT.get_message(messages, config)
+      if reply do
+        Slack.send_message(reply, channel, ts)
+      end
+    end)
     Map.put_new(state, context, %{"messages" => messages, "config" => config})
   end
 
@@ -94,11 +99,21 @@ defmodule SlackGptbot.Bot do
     # 待ち時間があるので先にリアクションを送る
     current_messages = get_in(state, [context, "messages"])
     config = get_in(state, [context, "config"])
-    {reply, messages} = ChatGPT.get_reply_to_user_message(current_messages, message, config)
-    if reply do
-      Slack.send_message(reply, channel, ts)
+
+    ChatGPT.add_user_message(current_messages, message)
+    |> case do
+      {:ok, messages} ->
+        Task.start(fn ->
+          reply = ChatGPT.get_message(messages, config)
+          if reply do
+            Slack.send_message(reply, channel, ts)
+          end
+        end)
+        put_in(state, [context, "messages"], messages)
+
+      {:nothing, messages} ->
+        put_in(state, [context, "messages"], messages)
     end
-    put_in(state, [context, "messages"], messages)
   end
 
   defp start_conversation_if_bot_channel(state, context, message) do
@@ -156,12 +171,12 @@ defmodule SlackGptbot.Bot do
     :mention
   end
 
-  defp fetch_message_kind(%{"type" => "message", "channel_type" => "im"}) do
-    :im_first_message
-  end
-
   defp fetch_message_kind(%{"type" => "message", "thread_ts" => _}) do
     :someone_post
+  end
+
+  defp fetch_message_kind(%{"type" => "message", "channel_type" => "im"}) do
+    :im_first_message
   end
 
   defp fetch_message_kind(%{"type" => "message"}) do

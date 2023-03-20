@@ -8,49 +8,32 @@ defmodule SlackGptbot.API.ChatGPT do
     messages ++ [%{"role" => "assistant", "content" => message}]
   end
 
-  @doc """
-  初回のユーザー発言に対する返信内容を返す
-  """
-  def get_first_reply(message, channel_prompt, config) do
-    {user_prompt, user_message} = parse_first_message(message)
-    prompt = merge_prompt(channel_prompt, user_prompt)
-    messages =
-      init_system_message(prompt)
-      |> add_user_message(user_message)
-    reply = get_message(messages, config)
+  def add_user_message(messages, "!" <> _rest), do: {:nothing, messages}
 
-    {reply, messages}
-  end
+  def add_user_message(messages, "コメント" <> _rest), do: {:nothing, messages}
 
-  @doc """
-  ユーザー発言に対する返信内容とメッセージ群を返す
-  """
-  def get_reply_to_user_message(messages, message, config)
+  def add_user_message([system | _rest], "---"), do: {:nothing, [system]}
 
-  def get_reply_to_user_message(messages, "!" <> _rest, _config), do: {nil, messages}
+  def add_user_message([system | _rest], "リセット"), do: {:nothing, [system]}
 
-  def get_reply_to_user_message(messages, "コメント" <> _rest, _config), do: {nil, messages}
-
-  def get_reply_to_user_message([system | _rest], "---", _config), do: {nil, [system]}
-
-  def get_reply_to_user_message([system | _rest], "リセット", _config), do: {nil, [system]}
-
-  def get_reply_to_user_message([system | _rest], "---" <> rest, config) do
-    new_messages = add_user_message([system], rest)
-    reply = get_message(new_messages, config)
-
-    {reply, new_messages}
-  end
-
-  def get_reply_to_user_message(messages, message, config) do
-    new_messages = add_user_message(messages, message)
-    reply = get_message(new_messages, config)
-
-    {reply, new_messages}
+  def add_user_message([system | _rest], "---" <> rest) do
+    add_user_message([system], rest)
   end
 
   def add_user_message(messages, message) do
-    messages ++ [%{"role" => "user", "content" => message}]
+    {:ok, messages ++ [%{"role" => "user", "content" => message}]}
+  end
+
+  @doc """
+  初回のユーザー発言に対する返信内容を返す
+  """
+  def get_first_messages(message, channel_prompt) do
+    {user_prompt, user_message} = parse_first_message(message)
+    prompt = merge_prompt(channel_prompt, user_prompt)
+
+    init_system_message(prompt)
+    |> add_user_message(user_message)
+    |> elem(1)
   end
 
   def get_message(messages, config) do
@@ -64,7 +47,7 @@ defmodule SlackGptbot.API.ChatGPT do
         |> List.first()
         |> get_in(["message", "content"])
       {:error, error} ->
-        "Error: #{error.message}"
+        "Error: #{error.reason}"
     end
   end
 
