@@ -7,6 +7,11 @@ defmodule SlackGptbot.Bot do
   @limit_num_conversations 1000
   @limit_num_dates 90
 
+  # 外部から設定できるパラメータ
+  @default_channel_setting %{
+    "prompt" => "",
+  }
+
   def start_link([]) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
@@ -40,8 +45,11 @@ defmodule SlackGptbot.Bot do
       {false, k} when k in [:mention, :im_first_message] ->
         # 開始
         Slack.send_reaction(channel, "robot_face", ts)
+        channel_setting =
+          Slack.get_channel_purpose(channel)
+          |> make_channel_setting_from_channel_purpose()
         {config, message} = ChatGPT.build_config(message)
-        {reply, messages} = ChatGPT.get_first_reply(message, config)
+        {reply, messages} = ChatGPT.get_first_reply(message, channel_setting["prompt"], config)
         Slack.send_message(reply, channel, ts)
         state = Map.put_new(state, context, %{"messages" => messages, "config" => config})
         # 10回に1回程度の頻度でデータを掃除
@@ -131,5 +139,12 @@ defmodule SlackGptbot.Bot do
       num_dates >= @limit_num_dates
     end)
     |> Map.new()
+  end
+
+  defp make_channel_setting_from_channel_purpose(purpose) do
+    ~r{prompt:(?<prompt>.+?\n\n)}s
+    |> Regex.named_captures(purpose)
+    |> Kernel.||(%{})
+    |> Enum.into(@default_channel_setting)
   end
 end

@@ -1,7 +1,6 @@
 defmodule SlackGptbot.API.ChatGPT do
 
   def init_system_message(message) do
-    # その他、メタ設定が必要であれば追加する
     [%{"role" => "system", "content" => message}]
   end
 
@@ -12,8 +11,12 @@ defmodule SlackGptbot.API.ChatGPT do
   @doc """
   初回のユーザー発言に対する返信内容を返す
   """
-  def get_first_reply(message, config) do
-    messages = init_system_message(message)
+  def get_first_reply(message, channel_prompt, config) do
+    {user_prompt, user_message} = parse_first_message(message)
+    prompt = channel_prompt <> user_prompt
+    messages =
+      init_system_message(prompt)
+      |> add_user_message(user_message)
     reply = get_message(messages, config)
 
     {reply, messages}
@@ -72,7 +75,7 @@ defmodule SlackGptbot.API.ChatGPT do
       method: :post,
       headers: headers(),
       body: Jason.encode!(data),
-      receive_timeout: 60_000
+      receive_timeout: 120_000
     )
   end
 
@@ -109,6 +112,14 @@ defmodule SlackGptbot.API.ChatGPT do
       },
       message
     }
+  end
+
+  defp parse_first_message(message) do
+    String.split(message, "\n\n")
+    |> case do
+      [row] -> {"", row}
+      [head | tail] -> {head, Enum.join(tail, "\n")}
+    end
   end
 
   defp build_post_data(messages, config) do

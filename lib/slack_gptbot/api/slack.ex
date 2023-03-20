@@ -22,12 +22,35 @@ defmodule SlackGptbot.API.Slack do
     )
   end
 
+  def get_channel_purpose(channel) do
+    req_get(
+      "https://slack.com/api/conversations.info",
+      %{
+        channel: channel,
+      }
+    )
+    |> case do
+      {:ok, response} ->
+        get_in(response.body, ["channel", "purpose", "value"])
+      _ -> ""
+    end
+  end
+
   defp req_post(url, data) do
     Req.request(
       url: url,
       method: :post,
       headers: headers(),
       body: Jason.encode!(data)
+    )
+  end
+
+  defp req_get(url, data) do
+    Req.request(
+      url: url,
+      method: :get,
+      headers: headers(),
+      params: data
     )
   end
 
