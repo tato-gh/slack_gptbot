@@ -13,6 +13,7 @@ ChatGPT bot for Slack Application (my practice to use chatgpt api).
 - CHATGPT_TOKEN: ChatGPT Access Token
 
 
+
 ## Slack上での使い方
 
 - アプリをチャンネルに追加
@@ -24,4 +25,17 @@ ChatGPT bot for Slack Application (my practice to use chatgpt api).
 - システムが落ちない限りは、90日を超えないと会話情報は消えない
   - データ量が多くなるとサーバに蓄積されるので注意する
   - この辺りの仕様は、個人利用のため何も検証していない
+
+
+## Get it up for now
+
+```
+cp .env.sample .env
+docker run -it -p 80:80 -v `pwd`:/srv --env-file .env elixir:1.14 /bin/bash
+
+# in container
+cd /srv
+mix deps.get
+iex -S mix run
+```
 
