@@ -35,7 +35,7 @@ defmodule SlackGptbot.API.ChatGPT do
   初回のユーザー発言に対する返信内容を返す
   """
   def get_first_messages(message, channel_prompt) do
-    {user_prompt, user_message} = parse_first_message(message)
+    {user_prompt, user_message} = parse_first_message(message || "")
     {prompt, prompt_as_message} = merge_prompt(channel_prompt, user_prompt)
     user_message = Enum.join([prompt_as_message, user_message], "\n")
 
@@ -44,7 +44,7 @@ defmodule SlackGptbot.API.ChatGPT do
     |> elem(1)
   end
 
-  def get_message(messages, config) do
+  def get_message(messages, config \\ %{}) do
     data = build_post_data(messages, config)
 
     case req_post(data) do
@@ -69,42 +69,7 @@ defmodule SlackGptbot.API.ChatGPT do
     )
   end
 
-  def build_config("loose" <> message) do
-    {
-      %{
-        temperature: 1.0,
-        presence_penalty: 0.6,
-        frequency_penalty: 0.6
-      },
-      message
-    }
-  end
-
-  def build_config("tight" <> message) do
-    {
-      %{
-        temperature: 0.6,
-        presence_penalty: 0,
-        frequency_penalty: 0
-      },
-      message
-    }
-  end
-
-  def build_config(message) do
-    # use default
-    {
-      %{
-        # temperature: 1.0,
-        # top_p: 1.0,
-        # presence_penalty: 0,
-        # frequency_penalty: 0
-      },
-      message
-    }
-  end
-
-  defp merge_prompt("", user_prompt) do
+  defp merge_prompt(channel_prompt, user_prompt) when channel_prompt in ["", nil] do
     {"", user_prompt}
   end
 
