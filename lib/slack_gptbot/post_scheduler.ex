@@ -5,6 +5,8 @@ defmodule SlackGptbot.PostScheduler do
 
   use GenServer
 
+  @waiting_time_min_sec 3600
+
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
@@ -72,7 +74,11 @@ defmodule SlackGptbot.PostScheduler do
   defp reserve_next_post(channel) do
     try do
       next_datetime = next_execution_datetime(channel.schedule)
-      waiting_sec = NaiveDateTime.diff(next_datetime, NaiveDateTime.utc_now())
+      waiting_sec =
+        Enum.max([
+          NaiveDateTime.diff(next_datetime, NaiveDateTime.utc_now()),
+          @waiting_time_min_sec
+        ])
       Process.send_after(self(), {:post_scheduled, channel.id}, waiting_sec * 1000)
     rescue
       error -> error
