@@ -112,7 +112,7 @@ defmodule SlackGptbot.API.ChatGPT do
     words =
       user_prompt
       |> String.trim()
-      |> String.split(~r{[[:blank:]]})
+      |> String.split(~r{[[:blank:]　]}u)
       |> Enum.map(&String.trim/1)
       |> Enum.with_index(1)
 
