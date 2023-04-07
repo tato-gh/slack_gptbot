@@ -22,14 +22,13 @@ defmodule SlackGptbot.Bot do
 
   @impl GenServer
   def init(_args) do
-    # TODO: リソースの構造を整理して切り出し検討
     {:ok, %{}}
   end
 
   @impl GenServer
   def handle_cast({:message, params}, state) do
     # - 開始：自身宛にメンションかつ未作成の話題(ts)。自分宛てのDM
-    #   - 例外として、チャンネル名が`bot-`で始まるならばメンションなしで対応する
+    #   - 例外として、チャンネル名が@bot_channelで始まるならばメンションなしで対応する
     # - 蓄積：作成済みの話題かつ自身の発言
     # - 発言：作成済みの話題かつ他者の発言
     # - その他仕様
@@ -72,21 +71,34 @@ defmodule SlackGptbot.Bot do
     end
   end
 
+  # TODO: リファクタリング
   defp start_conversation(state, context, message) do
     {channel, ts} = context
-    Slack.send_reaction(channel, "robot_face", ts)
+    if ts do
+      # stream未対応のため先にリアクションで応答
+      Slack.send_reaction(channel, "robot_face", ts)
+    end
     channel_setting =
       Slack.get_channel_purpose(channel)
       |> make_channel_setting_from_channel_purpose()
     {config, message} = ChatGPT.build_config(message)
     messages = ChatGPT.get_first_messages(message, channel_setting["prompt"])
-    Task.start(fn ->
+    if ts do
+      Task.start(fn ->
+        reply = ChatGPT.get_message(messages, config)
+        if reply do
+          Slack.send_message(reply, channel, ts)
+        end
+      end)
+      Map.put_new(state, context, %{"messages" => messages, "config" => config})
+    else
+      # Botから送信する場合にtsがないため同期的実施
       reply = ChatGPT.get_message(messages, config)
       if reply do
-        Slack.send_message(reply, channel, ts)
+        ts = Slack.send_message(reply, channel, ts)
+        Map.put_new(state, {channel, ts}, %{"messages" => messages, "config" => config})
       end
-    end)
-    Map.put_new(state, context, %{"messages" => messages, "config" => config})
+    end
   end
 
   defp put_my_message(state, context, message) do

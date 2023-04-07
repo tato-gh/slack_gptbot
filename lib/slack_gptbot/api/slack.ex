@@ -20,6 +20,7 @@ defmodule SlackGptbot.API.Slack do
         thread_ts: timestamp
       }
     )
+    |> then(fn {:ok, response} -> Map.get(response.body, "ts") end)
   end
 
   def get_channel_purpose(channel) do
@@ -43,6 +44,15 @@ defmodule SlackGptbot.API.Slack do
       {:ok, response} ->
         get_in(response.body, ["channel", "name"])
       _ -> ""
+    end
+  end
+
+  def get_channels do
+    req_get("https://slack.com/api/conversations.list", %{})
+    |> case do
+      {:ok, response} ->
+        get_in(response.body, ["channels"])
+      _ -> []
     end
   end
 
