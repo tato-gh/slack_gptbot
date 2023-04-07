@@ -24,7 +24,8 @@ defmodule SlackGptbot.MixProject do
     [
       {:bandit, ">= 0.6.9"},
       {:jason, "~> 1.4"},
-      {:req, "~> 0.3"}
+      {:req, "~> 0.3"},
+      {:quantum, "~> 3.0"}
     ]
   end
 end

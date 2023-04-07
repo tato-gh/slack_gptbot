@@ -1,4 +1,8 @@
 defmodule SlackGptbot.BotDirector do
+  @moduledoc """
+  Botのプロセスを管理するサーバ
+  """
+
   use GenServer
 
   # データ掃除実施の頻度。指定値に一回程度
@@ -64,6 +68,19 @@ defmodule SlackGptbot.BotDirector do
     {:noreply, state}
   end
 
+  def handle_cast({:own_first_post, channel}, state) do
+    # botから送るためのメッセージを取得
+    {messages, reply} = SlackGptbot.Bot.get_message_from_chatgpt(channel, "どうぞ")
+    # slackの動的に送り会話識別子(ts)を入手
+    ts = SlackGptbot.API.Slack.send_message(reply, channel, nil)
+
+    conversation = {channel, ts}
+    bot_name = make_name(conversation)
+    {:ok, _} = SlackGptbot.Bot.start_link(bot_name, conversation, messages)
+
+    {:noreply, state}
+  end
+
   defp register_bot(bot_list, bot_name) do
     [{bot_name, DateTime.now!("Etc/UTC")}] ++ bot_list
   end
@@ -80,17 +97,17 @@ defmodule SlackGptbot.BotDirector do
           |> Kernel./(60 * 60 * 24)
         num_dates <= @limit_num_dates
       end)
-    pick_ind = length(bot_list_keep)
+    ind_kept = length(bot_list_keep)
 
     # 掃除対象プロセス停止
     bot_list
-    |> Enum.slice(pick_ind..-1)
+    |> Enum.slice(ind_kept..-1)
     |> Enum.each(fn {bot_name, _} ->
       Process.whereis(bot_name)
       |> Process.exit(:kill)
     end)
 
-    bot_list_keep
+    bot_list
   end
 
   defp make_name(conversation) do
