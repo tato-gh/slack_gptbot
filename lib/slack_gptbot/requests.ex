@@ -1,7 +1,7 @@
 defmodule SlackGptbot.Requests do
 
   @doc """
-  生bodyを保存しておくためのパーサ
+  raw bodyを保存しておくためのパーサ
   """
   def read_body(conn, opts) do
     {:ok, body, conn} = Plug.Conn.read_body(conn, opts)

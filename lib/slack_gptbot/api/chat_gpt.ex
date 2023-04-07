@@ -1,4 +1,7 @@
 defmodule SlackGptbot.API.ChatGPT do
+  def init_system_message("") do
+    []
+  end
 
   def init_system_message(message) do
     [%{"role" => "system", "content" => message}]
@@ -20,6 +23,10 @@ defmodule SlackGptbot.API.ChatGPT do
     add_user_message([system], rest)
   end
 
+  def add_user_message(messages, "") do
+    {:empty, messages}
+  end
+
   def add_user_message(messages, message) do
     {:ok, messages ++ [%{"role" => "user", "content" => message}]}
   end
@@ -29,7 +36,8 @@ defmodule SlackGptbot.API.ChatGPT do
   """
   def get_first_messages(message, channel_prompt) do
     {user_prompt, user_message} = parse_first_message(message)
-    prompt = merge_prompt(channel_prompt, user_prompt)
+    {prompt, prompt_as_message} = merge_prompt(channel_prompt, user_prompt)
+    user_message = Enum.join([prompt_as_message, user_message], "\n")
 
     init_system_message(prompt)
     |> add_user_message(user_message)
@@ -96,29 +104,48 @@ defmodule SlackGptbot.API.ChatGPT do
     }
   end
 
+  defp merge_prompt("", user_prompt) do
+    {"", user_prompt}
+  end
+
   defp merge_prompt(channel_prompt, user_prompt) do
     words =
       user_prompt
       |> String.trim()
-      |> String.split(~r{[[:blank:]\n]})
+      |> String.split(~r{[[:blank:]]})
+      |> Enum.map(&String.trim/1)
       |> Enum.with_index(1)
 
-    Enum.reduce(words, channel_prompt, fn {word, nth}, prompt ->
+    Enum.reduce(words, {channel_prompt, []}, fn {word, nth}, {prompt, rests} ->
       mark = "$#{nth}"
+
       prompt
       |> String.contains?(mark)
       |> case do
-        true -> String.replace(prompt, mark, word)
-        false -> Enum.join([prompt, word], "\n")
+        false ->
+          {prompt, rests ++ [word]}
+        true ->
+          {String.replace(prompt, "$#{nth}", word), rests}
       end
     end)
-    |> String.trim()
+    |> then(fn {prompt, rests} ->
+      {wrap_channel_prompt(prompt), Enum.join(rests, " ")}
+    end)
+  end
+
+  defp wrap_channel_prompt(prompt) do
+    """
+    下記の指示に必ず従うこと。
+    ### 指示
+    #{prompt}
+    ###
+    """
   end
 
   defp parse_first_message(message) do
-    String.split(message, "\n\n")
+    String.split(message, "\n")
     |> case do
-      [row] -> {"", row}
+      [row] -> {row, ""}
       [head | tail] -> {head, Enum.join(tail, "\n")}
     end
   end
