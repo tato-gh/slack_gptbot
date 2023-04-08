@@ -3,10 +3,10 @@ defmodule SlackGptbot.Bot do
   alias SlackGptbot.API.{ChatGPT, Slack}
 
   # メンションなしでbotが動くチャンネル印
-  @bot_passive_channel "bot-"
+  @bot_passive_channels ~w(bot- botto-)
 
   # botから会話をスタートする対象チャンネル印
-  @bot_active_channel "botto-"
+  @bot_active_channels ~w(botto-)
   @default_post_schedule "0 22 * * *"
 
   @doc """
@@ -56,14 +56,17 @@ defmodule SlackGptbot.Bot do
   end
 
   def direct_handlable_channel?(channel) do
-    channel
-    |> Slack.get_channel_name()
-    |> String.starts_with?(@bot_passive_channel)
+    channel_name= channel |> Slack.get_channel_name()
+
+    @bot_passive_channels
+    |> Enum.find(& String.starts_with?(channel_name, &1))
+    |> (if do: true, else: false)
   end
 
   def first_postable_channel?(channel_name) do
-    channel_name
-    |> String.starts_with?(@bot_active_channel)
+    @bot_active_channels
+    |> Enum.find(& String.starts_with?(channel_name, &1))
+    |> (if do: true, else: false)
   end
 
   defp fetch_channel_prompt(channel) do
