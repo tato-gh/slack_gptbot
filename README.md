@@ -2,6 +2,11 @@
 
 ChatGPT bot for Slack Application (my practice to use chatgpt api).
 
+- [x] Slack上でChatGPTの応答をみれること
+- [x] スレッド内で同一会話を継続すること
+- [x] チャンネル説明をプロンプトとして使えること
+- [x] チャンネルによっては定期的にBotから会話がとばせること
+
 
 ## Environment
 
@@ -11,20 +16,6 @@ ChatGPT bot for Slack Application (my practice to use chatgpt api).
 - SLACK_SIGNING_SECRET: Slack Signing Secret
 - SLACK_BOT_TOKEN: Slack Bot Token
 - CHATGPT_TOKEN: ChatGPT Access Token
-
-
-
-## Slack上での使い方
-
-- アプリをチャンネルに追加
-- アプリに対してメンションをつけると会話がスタートする
-  - メンションと一緒に書いた文章は初期設定（システム情報）として使われる
-    - 例１： `@bot 英訳してください`
-    - 例２： `@bot 日本のアニメキャラになりきってください`
-  - 同じ会話を続けるにはスレッドを使う
-- システムが落ちない限りは、90日を超えないと会話情報は消えない
-  - データ量が多くなるとサーバに蓄積されるので注意する
-  - この辺りの仕様は、個人利用のため何も検証していない
 
 
 ## Get it up for now
@@ -38,4 +29,15 @@ cd /srv
 mix deps.get
 iex -S mix run
 ```
+
+
+## Slack api permissions
+
+- app_mentions:read
+- channels:history
+- channels:raad
+- chat:write
+- im:history
+- im:write
+- reactions:write
 
