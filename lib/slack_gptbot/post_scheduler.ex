@@ -13,11 +13,12 @@ defmodule SlackGptbot.PostScheduler do
 
   @impl GenServer
   def init(_args) do
+    Process.send_after(__MODULE__, :channels_crawling, 1000)
     {:ok, %{}}
   end
 
   @impl GenServer
-  def handle_cast(:channels_crawling, state) do
+  def handle_info(:channels_crawling, state) do
     state = merge_latest_channels(state)
     sent_ids = start_conversation(state)
     start_at = NaiveDateTime.utc_now()
@@ -29,7 +30,6 @@ defmodule SlackGptbot.PostScheduler do
     {:noreply, state}
   end
 
-  @impl GenServer
   def handle_info({:post_scheduled, channel_id}, state) do
     GenServer.cast(SlackGptbot.BotDirector, {:own_first_post, channel_id})
     reserve_next_post(Map.get(state, channel_id))
@@ -41,7 +41,7 @@ defmodule SlackGptbot.PostScheduler do
   Slackチャンネルの巡回・設定更新処理
   """
   def crawl_channels_info do
-    GenServer.cast(__MODULE__, :channels_crawling)
+    Process.send_after(__MODULE__, :channels_crawling, 1000)
   end
 
   defp merge_latest_channels(channels) do
