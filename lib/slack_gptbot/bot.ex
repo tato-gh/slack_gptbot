@@ -28,7 +28,7 @@ defmodule SlackGptbot.Bot do
     # stream未対応のため先にリアクションで応答
     Slack.send_reaction(state.channel, "robot_face", state.ts)
     # 本対応
-    {messages, reply} = get_message_from_chatgpt(state.channel, message)
+    {messages, reply} = get_first_reply_from_chatgpt(state.channel, message)
     Slack.send_message(reply, state.channel, state.ts)
 
     {:noreply, state |> Map.put(:messages, messages)}
@@ -47,9 +47,13 @@ defmodule SlackGptbot.Bot do
     end
   end
 
-  def get_message_from_chatgpt(channel, message) do
+  def get_first_reply_from_chatgpt(channel, message) do
     channel_prompt = fetch_channel_prompt(channel)
-    messages = ChatGPT.get_first_messages(message, channel_prompt)
+    {user_prompt, user_message} = parse_first_message(message || "")
+    {prompt, prompt_as_message} = merge_prompt(channel_prompt, user_prompt)
+    user_message = Enum.join([prompt_as_message, user_message], "\n")
+
+    messages = ChatGPT.create_first_messages(prompt, user_message)
     reply = ChatGPT.get_message(messages)
 
     {messages, reply}
@@ -67,6 +71,55 @@ defmodule SlackGptbot.Bot do
     @bot_active_channels
     |> Enum.find(& String.starts_with?(channel_name, &1))
     |> (if do: true, else: false)
+  end
+
+  defp parse_first_message(message) do
+    String.split(message, "\n")
+    |> case do
+      [row] -> {row, ""}
+      [head | tail] -> {head, Enum.join(tail, "\n")}
+    end
+  end
+
+  defp merge_prompt(channel_prompt, user_prompt) when channel_prompt in ["", nil] do
+    {"", user_prompt}
+  end
+
+  defp merge_prompt(channel_prompt, user_prompt) do
+    words =
+      user_prompt
+      |> String.trim()
+      |> String.split(~r{[[:blank:]　]}u)
+      |> Enum.map(&String.trim/1)
+      |> Enum.with_index(1)
+
+    Enum.reduce(words, {channel_prompt, []}, fn {word, nth}, {prompt, rests} ->
+      mark = "$#{nth}"
+
+      prompt
+      |> String.contains?(mark)
+      |> case do
+        false ->
+          {prompt, rests ++ [word]}
+        true ->
+          {String.replace(prompt, "$#{nth}", word), rests}
+      end
+    end)
+    |> then(fn {prompt, rests} ->
+      {
+        wrap_channel_prompt(prompt),
+        Enum.join(rests, " ")
+      }
+    end)
+  end
+
+  defp wrap_channel_prompt(prompt) do
+    """
+    下記の指示に必ず従うこと。
+    ### 指示
+    #{prompt}
+    ###
+    """
   end
 
   defp fetch_channel_prompt(channel) do

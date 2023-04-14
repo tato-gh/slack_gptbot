@@ -1,9 +1,18 @@
 defmodule SlackGptbot.API.ChatGPT do
-  def init_system_message("") do
+  @doc """
+  初回のユーザー発言に対する返信内容を返す
+  """
+  def create_first_messages(prompt, message) do
+    init_system_message(prompt)
+    |> add_user_message(message)
+    |> elem(1)
+  end
+
+  defp init_system_message("") do
     []
   end
 
-  def init_system_message(message) do
+  defp init_system_message(message) do
     [%{"role" => "system", "content" => message}]
   end
 
@@ -31,19 +40,6 @@ defmodule SlackGptbot.API.ChatGPT do
     {:ok, messages ++ [%{"role" => "user", "content" => message}]}
   end
 
-  @doc """
-  初回のユーザー発言に対する返信内容を返す
-  """
-  def get_first_messages(message, channel_prompt) do
-    {user_prompt, user_message} = parse_first_message(message || "")
-    {prompt, prompt_as_message} = merge_prompt(channel_prompt, user_prompt)
-    user_message = Enum.join([prompt_as_message, user_message], "\n")
-
-    init_system_message(prompt)
-    |> add_user_message(user_message)
-    |> elem(1)
-  end
-
   def get_message(messages, config \\ %{}) do
     data = build_post_data(messages, config)
 
@@ -67,52 +63,6 @@ defmodule SlackGptbot.API.ChatGPT do
       body: Jason.encode!(data),
       receive_timeout: 300_000
     )
-  end
-
-  defp merge_prompt(channel_prompt, user_prompt) when channel_prompt in ["", nil] do
-    {"", user_prompt}
-  end
-
-  defp merge_prompt(channel_prompt, user_prompt) do
-    words =
-      user_prompt
-      |> String.trim()
-      |> String.split(~r{[[:blank:]　]}u)
-      |> Enum.map(&String.trim/1)
-      |> Enum.with_index(1)
-
-    Enum.reduce(words, {channel_prompt, []}, fn {word, nth}, {prompt, rests} ->
-      mark = "$#{nth}"
-
-      prompt
-      |> String.contains?(mark)
-      |> case do
-        false ->
-          {prompt, rests ++ [word]}
-        true ->
-          {String.replace(prompt, "$#{nth}", word), rests}
-      end
-    end)
-    |> then(fn {prompt, rests} ->
-      {wrap_channel_prompt(prompt), Enum.join(rests, " ")}
-    end)
-  end
-
-  defp wrap_channel_prompt(prompt) do
-    """
-    下記の指示に必ず従うこと。
-    ### 指示
-    #{prompt}
-    ###
-    """
-  end
-
-  defp parse_first_message(message) do
-    String.split(message, "\n")
-    |> case do
-      [row] -> {row, ""}
-      [head | tail] -> {head, Enum.join(tail, "\n")}
-    end
   end
 
   defp build_post_data(messages, config) do
