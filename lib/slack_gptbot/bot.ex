@@ -2,6 +2,8 @@ defmodule SlackGptbot.Bot do
   use GenServer
   alias SlackGptbot.API.{ChatGPT, Slack}
 
+  # TODO: チャンネルのデータ類を扱うモジュールに分離すること
+
   # メンションなしでbotが動くチャンネル印
   @bot_passive_channels ~w(bot- botto-)
 
@@ -93,6 +95,8 @@ defmodule SlackGptbot.Bot do
       |> Enum.map(&String.trim/1)
       |> Enum.with_index(1)
 
+    channel_prompt = replace_prompt_operation_signs(channel_prompt)
+
     Enum.reduce(words, {channel_prompt, []}, fn {word, nth}, {prompt, rests} ->
       mark = "$#{nth}"
 
@@ -110,6 +114,61 @@ defmodule SlackGptbot.Bot do
         wrap_channel_prompt(prompt),
         Enum.join(rests, " ")
       }
+    end)
+  end
+
+  defp replace_prompt_operation_signs(prompt) do
+    # 各種指示キーを決定する
+    # - ${rand:格言,名言,歴史的な発言}
+    # - ${order:古代,中世,近代,現代} ただし日単位での切り替え
+    # - ${order:1..100/10} ただし日単位での切り替え
+    # - ${date:%Y-%m-%d}
+    # ユーザー入力をコードに入れている点に注意する
+    # 原則データとして扱い実行コードとしては入力を評価しないこと
+
+    prompt
+    |> replace_prompt_rand_list()
+    |> replace_prompt_order_list()
+    |> replace_prompt_order_range()
+    |> replace_prompt_date()
+  end
+
+  defp replace_prompt_rand_list(prompt) do
+    Regex.replace(~r/\${rand:(.+?,.+?)}/, prompt, fn _, hit ->
+      String.split(hit, ",")
+      |> Enum.random()
+    end)
+  end
+
+  defp replace_prompt_order_list(prompt) do
+    Regex.replace(~r/\${order:(.+?,.+?)}/, prompt, fn _, hit ->
+      String.split(hit, ",")
+      |> list_fetch_on_date()
+    end)
+  end
+
+  defp replace_prompt_order_range(prompt) do
+    Regex.replace(~r/\${order:(\d+?\.\.\d+?\/\d+?)}/, prompt, fn _, hit ->
+      %{"n1" => n1, "n2" => n2, "step" => step} =
+        ~r{(?<n1>\d+?)\.\.(?<n2>\d+?)\/(?<step>\d+?)\z}
+        |> Regex.named_captures(hit)
+        |> Map.new(fn {k, v} -> {k, String.to_integer(v)} end)
+
+      Range.new(n1, n2, step)
+      |> Enum.to_list()
+      |> list_fetch_on_date()
+      |> then(& "#{&1}")
+    end)
+  end
+
+  defp replace_prompt_date(prompt) do
+    Regex.replace(~r/\${date:(.+?)}/, prompt, fn _, hit ->
+      today = Date.utc_today()
+      try do
+        Calendar.strftime(today, hit)
+      rescue
+        ArgumentError -> ""
+      end
     end)
   end
 
@@ -137,5 +196,13 @@ defmodule SlackGptbot.Bot do
     |> Kernel.||(%{})
     |> Map.get("schedule", @default_post_schedule)
     |> String.trim()
+  end
+
+  defp list_fetch_on_date(list) do
+    size = length(list)
+    {num, _} = Date.day_of_era(Date.utc_today())
+    ind = Kernel.rem(num, size)
+
+    Enum.at(list, ind)
   end
 end
