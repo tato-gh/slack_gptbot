@@ -5,6 +5,7 @@ defmodule SlackGptbot.PostScheduler do
 
   use GenServer
 
+  # 連投防止のための待機時間
   @waiting_time_min_sec 3600
 
   def start_link(_opts) do
@@ -32,6 +33,8 @@ defmodule SlackGptbot.PostScheduler do
 
   def handle_info({:post_scheduled, channel_id}, state) do
     GenServer.cast(SlackGptbot.BotDirector, {:own_first_post, channel_id})
+    # 即時に次回予約を行うと同一時刻で投稿される可能性があるため、一分間待つ
+    :timer.sleep(60 * 1000)
     reserve_next_post(Map.get(state, channel_id))
 
     {:noreply, state}
@@ -63,7 +66,9 @@ defmodule SlackGptbot.PostScheduler do
     |> Enum.reject(& Map.get(&1, :start_at))
     |> Enum.map(fn channel ->
       # 初回投稿
-      GenServer.cast(SlackGptbot.BotDirector, {:own_first_post, channel.id})
+      # サーバ起動失敗時に繰り返し実行される可能性があるため実施しない
+      # GenServer.cast(SlackGptbot.BotDirector, {:own_first_post, channel.id})
+
       # 次回投稿予約
       reserve_next_post(channel)
 
