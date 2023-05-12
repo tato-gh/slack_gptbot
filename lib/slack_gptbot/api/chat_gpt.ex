@@ -2,6 +2,9 @@ defmodule SlackGptbot.API.ChatGPT do
   @doc """
   初回のユーザー発言に対する返信内容を返す
   """
+
+  @default_model "gpt-3.5-turbo"
+
   def create_first_messages(prompt, message) do
     init_system_message(prompt)
     |> add_user_message(message)
@@ -108,7 +111,7 @@ defmodule SlackGptbot.API.ChatGPT do
     # - NOTE: マイナスにしたらtimeoutした
     #
     %{
-      model: "gpt-3.5-turbo",
+      model: @default_model,
       messages: messages,
       n: 1,
       # stop: "。",

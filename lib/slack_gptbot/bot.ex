@@ -9,19 +9,19 @@ defmodule SlackGptbot.Bot do
 
   # botから会話をスタートする対象チャンネル印
   @bot_active_channels ~w(botto-)
-  @default_post_schedule "0 22 * * *"
+  @default_post_schedule "0 13 * * *"
 
   @doc """
   開始処理
   """
-  def start_link(name, conversion, messages \\ []) do
+  def start_link(name, conversion, config \\ %{}, messages \\ []) do
     {channel, ts} = conversion
-    GenServer.start_link(__MODULE__, %{channel: channel, ts: ts, messages: messages}, name: name)
+    GenServer.start_link(__MODULE__, %{channel: channel, ts: ts, messages: messages, config: config}, name: name)
   end
 
   @impl GenServer
   def init(args) do
-    state = Map.take(args, [:channel, :ts, :messages])
+    state = Map.take(args, [:channel, :ts, :messages, :config])
     {:ok, state}
   end
 
@@ -30,7 +30,7 @@ defmodule SlackGptbot.Bot do
     # stream未対応のため先にリアクションで応答
     Slack.send_reaction(state.channel, "robot_face", state.ts)
     # 本対応
-    {messages, reply} = get_first_reply_from_chatgpt(state.channel, message)
+    {messages, reply} = get_first_reply_from_chatgpt(state.channel, message, state.config)
     Slack.send_message(reply, state.channel, state.ts)
 
     {:noreply, state |> Map.put(:messages, messages)}
@@ -40,7 +40,7 @@ defmodule SlackGptbot.Bot do
     ChatGPT.add_user_message(state.messages, message)
     |> case do
       {:ok, messages} ->
-        reply = ChatGPT.get_message(messages)
+        reply = ChatGPT.get_message(messages, state.config)
         Slack.send_message(reply, state.channel, state.ts)
         messages = ChatGPT.add_assistant_message(messages, reply)
         {:noreply, state |> Map.put(:messages, messages)}
@@ -49,14 +49,14 @@ defmodule SlackGptbot.Bot do
     end
   end
 
-  def get_first_reply_from_chatgpt(channel, message) do
+  def get_first_reply_from_chatgpt(channel, message, config) do
     channel_prompt = fetch_channel_prompt(channel)
     {user_prompt, user_message} = parse_first_message(message || "")
     {prompt, prompt_as_message} = merge_prompt(channel_prompt, user_prompt)
     user_message = Enum.join([prompt_as_message, user_message], "\n")
 
     messages = ChatGPT.create_first_messages(prompt, user_message)
-    reply = ChatGPT.get_message(messages)
+    reply = ChatGPT.get_message(messages, config)
 
     {messages, reply}
   end
