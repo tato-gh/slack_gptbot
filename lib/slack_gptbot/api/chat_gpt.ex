@@ -3,7 +3,7 @@ defmodule SlackGptbot.API.ChatGPT do
   初回のユーザー発言に対する返信内容を返す
   """
 
-  @default_model "gpt-3.5-turbo"
+  @default_model "gpt-3.5-turbo-0613"
 
   def create_first_messages(prompt, message) do
     init_system_message(prompt)
@@ -52,7 +52,7 @@ defmodule SlackGptbot.API.ChatGPT do
         |> Map.get("choices")
         # 設定によって回答候補をいくつか取れる。デフォルトは1なのでfirstしている
         |> List.first()
-        |> get_in(["message", "content"])
+        |> call_function_or_bot_message()
       {:error, error} ->
         "Error: #{error.reason}"
     end
@@ -114,6 +114,8 @@ defmodule SlackGptbot.API.ChatGPT do
       model: @default_model,
       messages: messages,
       n: 1,
+      # functions: functions(),
+      # function_call: "auto"
       # stop: "。",
     }
     |> Map.merge(config)
@@ -129,4 +131,49 @@ defmodule SlackGptbot.API.ChatGPT do
   defp chatgpt_token do
     System.get_env("CHATGPT_TOKEN")
   end
+
+  defp functions do
+    [
+      # temporary
+      %{
+        name: "sample_function",
+        description: "予定を今日にするよう促す",
+        parameters: %{
+          type: "object",
+          properties: %{
+            plan: %{
+              type: "string",
+              description: "明日の予定"
+            }
+          },
+          required: ["plan"]
+        },
+      }
+    ]
+  end
+
+  defp call_function_or_bot_message(%{
+    "finish_reason" => "function_call",
+    "message" => message
+  }) do
+    function_name =
+      get_in(message, ["function_call", "name"])
+      |> String.to_atom()
+    args =
+      get_in(message, ["function_call", "arguments"])
+      |> Jason.decode!(message)
+
+    apply(__MODULE__, function_name, [args])
+  end
+
+  defp call_function_or_bot_message(%{"message" => message}) do
+    message
+    |> Map.get("content")
+  end
+
+  def sample_function(%{"plan" => plan}) do
+    "- 明日やろう、は馬鹿野郎。\n- 明日できることは明日やろう！\n「#{plan}」はどっち？"
+  end
+
+  def sample_function(_args), do: ""
 end

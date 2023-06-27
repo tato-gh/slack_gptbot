@@ -32,6 +32,7 @@ defmodule SlackGptbot.Bot do
     # 本対応
     {messages, reply} = get_first_reply_from_chatgpt(state.channel, message, state.config)
     Slack.send_message(reply, state.channel, state.ts)
+    messages = ChatGPT.add_assistant_message(messages, reply)
 
     {:noreply, state |> Map.put(:messages, messages)}
   end
