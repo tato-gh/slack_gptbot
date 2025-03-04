@@ -3,7 +3,9 @@ defmodule SlackGptbot.API.ChatGPT do
   初回のユーザー発言に対する返信内容を返す
   """
 
-  @default_model "gpt-3.5-turbo-0613"
+  # @default_model "gpt-3.5-turbo-0613"
+  # @default_model "gpt-4o-2024-11-20"
+  @default_model "gpt-4o-mini-2024-07-18"
 
   def create_first_messages(prompt, message) do
     init_system_message(prompt)
@@ -132,25 +134,25 @@ defmodule SlackGptbot.API.ChatGPT do
     System.get_env("CHATGPT_TOKEN")
   end
 
-  defp functions do
-    [
-      # temporary
-      %{
-        name: "sample_function",
-        description: "予定を今日にするよう促す",
-        parameters: %{
-          type: "object",
-          properties: %{
-            plan: %{
-              type: "string",
-              description: "明日の予定"
-            }
-          },
-          required: ["plan"]
-        },
-      }
-    ]
-  end
+  # defp functions do
+  #   [
+  #     # temporary
+  #     %{
+  #       name: "sample_function",
+  #       description: "予定を今日にするよう促す",
+  #       parameters: %{
+  #         type: "object",
+  #         properties: %{
+  #           plan: %{
+  #             type: "string",
+  #             description: "明日の予定"
+  #           }
+  #         },
+  #         required: ["plan"]
+  #       },
+  #     }
+  #   ]
+  # end
 
   defp call_function_or_bot_message(%{
     "finish_reason" => "function_call",
