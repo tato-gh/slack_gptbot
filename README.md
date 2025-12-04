@@ -11,18 +11,18 @@ ChatGPT bot for Slack Application (my practice to use chatgpt api).
 ## Environment
 
 - BD_SCHEMA: Bandit schema. http or https
-- BD_HOST: Bandit host
+- BD_IP: Bandit IP address (e.g. 0.0.0.0, 127.0.0.1, or localhost)
 - BD_PORT: Bandit port
 - SLACK_SIGNING_SECRET: Slack Signing Secret
 - SLACK_BOT_TOKEN: Slack Bot Token
-- CHATGPT_TOKEN: ChatGPT Access Token
+- OPENAI_AIP_KEY: OPENAI API Access Token
 
 
 ## Get it up for now
 
 ```
 cp .env.sample .env
-docker run -it -p 80:80 -v `pwd`:/srv --env-file .env elixir:1.14 /bin/bash
+docker run -it -p 80:80 -v `pwd`:/srv --env-file .env elixir:1.19 /bin/bash
 
 # in container
 cd /srv

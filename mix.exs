@@ -5,7 +5,7 @@ defmodule SlackGptbot.MixProject do
     [
       app: :slack_gptbot,
       version: "0.1.0",
-      elixir: "~> 1.14",
+      elixir: "~> 1.19",
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
@@ -22,9 +22,9 @@ defmodule SlackGptbot.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:bandit, ">= 0.6.9"},
+      {:bandit, ">= 1.8.0"},
       {:jason, "~> 1.4"},
-      {:req, "~> 0.3"},
+      {:req, "~> 0.5.16"},
       {:quantum, "~> 3.0"}
     ]
   end

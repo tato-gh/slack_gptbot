@@ -132,7 +132,7 @@ defmodule SlackGptbot.API.ChatGPT do
   end
 
   defp chatgpt_token do
-    System.get_env("CHATGPT_TOKEN")
+    System.get_env("OPENAI_API_KEY")
   end
 
   # defp functions do
