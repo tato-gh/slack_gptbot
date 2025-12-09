@@ -56,6 +56,37 @@ defmodule SlackGptbot.API.Slack do
     end
   end
 
+  def download_file(%{"url_private" => url_private, "mimetype" => mimetype}) do
+    with {:ok, response} <- download_from_slack(url_private),
+         {:ok, base64_data} <- encode_to_base64(response.body) do
+      {:ok, build_data_uri(mimetype, base64_data)}
+    else
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def download_file(_), do: {:error, :invalid_file_data}
+
+  defp download_from_slack(url) do
+    Req.request(
+      url: url,
+      method: :get,
+      headers: [Authorization: "Bearer #{slack_bot_token()}"],
+      redirect: true,
+      max_redirects: 5
+    )
+  end
+
+  defp encode_to_base64(binary_data) when is_binary(binary_data) do
+    {:ok, Base.encode64(binary_data)}
+  end
+
+  defp encode_to_base64(_), do: {:error, :invalid_binary_data}
+
+  defp build_data_uri(mimetype, base64_data) do
+    "data:#{mimetype};base64,#{base64_data}"
+  end
+
   defp req_post(url, data) do
     Req.request(
       url: url,

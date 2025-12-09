@@ -6,7 +6,8 @@ defmodule SlackGptbot.API.ChatGPT do
   # @default_model "gpt-3.5-turbo-0613"
   # @default_model "gpt-4o-2024-11-20"
   # @default_model "gpt-4o-mini-2024-07-18"
-  @default_model "gpt-4.1-mini-2025-04-14"
+  # @default_model "gpt-4.1-mini-2025-04-14"
+  @default_model "gpt-5-mini"
 
   def create_first_messages(prompt, message) do
     init_system_message(prompt)
@@ -26,24 +27,38 @@ defmodule SlackGptbot.API.ChatGPT do
     messages ++ [%{"role" => "assistant", "content" => message}]
   end
 
-  def add_user_message(messages, "!" <> _rest), do: {:nothing, messages}
+  def add_user_message(messages, message, image_url \\ nil)
 
-  def add_user_message(messages, "コメント" <> _rest), do: {:nothing, messages}
+  def add_user_message(messages, "!" <> _rest, _image_url), do: {:nothing, messages}
 
-  def add_user_message([system | _rest], "---"), do: {:nothing, [system]}
+  def add_user_message(messages, "コメント" <> _rest, _image_url), do: {:nothing, messages}
 
-  def add_user_message([system | _rest], "リセット"), do: {:nothing, [system]}
+  def add_user_message([system | _rest], "---", _image_url), do: {:nothing, [system]}
 
-  def add_user_message([system | _rest], "---" <> rest) do
-    add_user_message([system], rest)
+  def add_user_message([system | _rest], "リセット", _image_url), do: {:nothing, [system]}
+
+  def add_user_message([system | _rest], "---" <> rest, image_url) do
+    add_user_message([system], rest, image_url)
   end
 
-  def add_user_message(messages, "") do
+  def add_user_message(messages, "", _image_url) do
     {:empty, messages}
   end
 
-  def add_user_message(messages, message) do
+  def add_user_message(messages, message, nil) do
     {:ok, messages ++ [%{"role" => "user", "content" => message}]}
+  end
+
+  def add_user_message(messages, message, image_url) when is_binary(image_url) do
+    content = build_content_with_image(message, image_url)
+    {:ok, messages ++ [%{"role" => "user", "content" => content}]}
+  end
+
+  defp build_content_with_image(message, image_url) do
+    [
+      %{"type" => "text", "text" => message},
+      %{"type" => "image_url", "image_url" => %{"url" => image_url}}
+    ]
   end
 
   def get_message(messages, config \\ %{}) do
@@ -51,13 +66,28 @@ defmodule SlackGptbot.API.ChatGPT do
 
     case req_post(data) do
       {:ok, response} ->
-        response.body
-        |> Map.get("choices")
-        # 設定によって回答候補をいくつか取れる。デフォルトは1なのでfirstしている
-        |> List.first()
-        |> call_function_or_bot_message()
+        require Logger
+
+        case response.body do
+          %{"choices" => choices} when is_list(choices) ->
+            choices
+            |> List.first()
+            |> call_function_or_bot_message()
+
+          %{"error" => error} ->
+            Logger.error("OpenAI API Error: #{inspect(error)}")
+            error_message = Map.get(error, "message", "不明なエラー")
+            "申し訳ありません。画像の処理に失敗しました: #{error_message}"
+
+          _ ->
+            Logger.error("Unexpected OpenAI API Response: #{inspect(response.body)}")
+            "申し訳ありません。予期しないエラーが発生しました"
+        end
+
       {:error, error} ->
-        "Error: #{error.reason}"
+        require Logger
+        Logger.error("OpenAI API Request Error: #{inspect(error)}")
+        "Error: OpenAI APIの呼び出しに失敗しました"
     end
   end
 

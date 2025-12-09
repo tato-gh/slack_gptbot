@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "search_my_palace": {
+      "type": "http",
+      "url": "http://terminal:4003/mcp/search"
+    },
+    "palace_journal": {
+      "type": "http",
+      "url": "http://terminal:4003/mcp/journal"
+    },
+    "palace_note": {
+      "type": "http",
+      "url": "http://terminal:4003/mcp/note"
+    }
+  }
+}

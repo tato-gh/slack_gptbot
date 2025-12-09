@@ -26,9 +26,10 @@ defmodule SlackGptbot.Controller do
   defp _conduct(%{"event" => event} = params) do
     conversation = fetch_conversation(event)
     message = fetch_text(event)
+    image_file = fetch_files(event)
     kind = fetch_message_kind(event)
 
-    GenServer.cast(SlackGptbot.BotDirector, {kind, {conversation, message}})
+    GenServer.cast(SlackGptbot.BotDirector, {kind, {conversation, message, image_file}})
     {:ok, Responses.build_reply(params)}
   end
 
@@ -52,6 +53,19 @@ defmodule SlackGptbot.Controller do
       |> String.trim()
     end
   end
+
+  defp fetch_files(event) do
+    event
+    |> Map.get("files", [])
+    |> Enum.filter(&image_file?/1)
+    |> List.first()
+  end
+
+  defp image_file?(%{"mimetype" => mimetype}) when is_binary(mimetype) do
+    String.starts_with?(mimetype, "image/")
+  end
+
+  defp image_file?(_), do: false
 
   # 以下、fetch_message_kind で順番は重要
   # 例えば、bot_idの処理が先にないと下手すると自botのメッセージへの返答処理が動いてしまう

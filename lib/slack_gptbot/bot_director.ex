@@ -20,30 +20,30 @@ defmodule SlackGptbot.BotDirector do
   end
 
   @impl GenServer
-  def handle_cast({:mention, {conversation, message}}, state) do
+  def handle_cast({:mention, {conversation, message, image_file}}, state) do
     bot_name = make_name(conversation)
     if Process.whereis(bot_name) do
       {:noreply, state}
     else
       {:ok, _} = SlackGptbot.Bot.start_link(bot_name, conversation)
-      GenServer.cast(bot_name, {:first_post, message})
+      GenServer.cast(bot_name, {:first_post, {message, image_file}})
       {:noreply, register_bot(state, bot_name)}
     end
   end
 
-  def handle_cast({:im_first_post, {conversation, message}}, state) do
+  def handle_cast({:im_first_post, {conversation, message, image_file}}, state) do
     bot_name = make_name(conversation)
     {:ok, _} = SlackGptbot.Bot.start_link(bot_name, conversation)
-    GenServer.cast(bot_name, {:first_post, message})
+    GenServer.cast(bot_name, {:first_post, {message, image_file}})
     {:noreply, register_bot(state, bot_name)}
   end
 
-  def handle_cast({:channel_first_post, {conversation, message}}, state) do
+  def handle_cast({:channel_first_post, {conversation, message, image_file}}, state) do
     {channel, _} = conversation
     if SlackGptbot.Bot.direct_handlable_channel?(channel) do
       bot_name = make_name(conversation)
       {:ok, _} = SlackGptbot.Bot.start_link(bot_name, conversation)
-      GenServer.cast(bot_name, {:first_post, message})
+      GenServer.cast(bot_name, {:first_post, {message, image_file}})
       state = if :rand.uniform(@cleaning_frequency) == 1, do: remove_expired_bot(state), else: state
       {:noreply, register_bot(state, bot_name)}
     else
@@ -51,10 +51,10 @@ defmodule SlackGptbot.BotDirector do
     end
   end
 
-  def handle_cast({:thread_post, {conversation, message}}, state) do
+  def handle_cast({:thread_post, {conversation, message, image_file}}, state) do
     bot_name = make_name(conversation)
     if Process.whereis(bot_name) do
-      GenServer.cast(bot_name, {:thread_post, message})
+      GenServer.cast(bot_name, {:thread_post, {message, image_file}})
     end
     {:noreply, state}
   end
@@ -69,15 +69,15 @@ defmodule SlackGptbot.BotDirector do
   end
 
   def handle_cast({:own_first_post, channel}, state) do
-    # botから送るためのメッセージを取得
-    # {messages, reply} = SlackGptbot.Bot.get_first_reply_from_chatgpt(channel, "どうぞ", %{model: "gpt-4"})
-    {messages, reply} = SlackGptbot.Bot.get_first_reply_from_chatgpt(channel, "どうぞ", %{})
+    # botから送るためのメッセージを取得（画像なし）
+    # {messages, reply} = SlackGptbot.Bot.get_first_reply_from_chatgpt(channel, "どうぞ", nil, %{model: "gpt-4"})
+    {messages, reply} = SlackGptbot.Bot.get_first_reply_from_chatgpt(channel, "どうぞ", nil, %{})
     # slackの動的に送り会話識別子(ts)を入手
     ts = SlackGptbot.API.Slack.send_message(reply, channel, nil)
 
     conversation = {channel, ts}
     bot_name = make_name(conversation)
-    {:ok, _} = SlackGptbot.Bot.start_link(bot_name, conversation, messages)
+    {:ok, _} = SlackGptbot.Bot.start_link(bot_name, conversation, %{}, messages)
 
     {:noreply, state}
   end

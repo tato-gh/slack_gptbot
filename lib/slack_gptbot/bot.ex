@@ -26,19 +26,21 @@ defmodule SlackGptbot.Bot do
   end
 
   @impl GenServer
-  def handle_cast({:first_post, message}, state) do
+  def handle_cast({:first_post, {message, image_file}}, state) do
     # stream未対応のため先にリアクションで応答
     Slack.send_reaction(state.channel, "robot_face", state.ts)
     # 本対応
-    {messages, reply} = get_first_reply_from_chatgpt(state.channel, message, state.config)
+    {messages, reply} = get_first_reply_from_chatgpt(state.channel, message, image_file, state.config)
     Slack.send_message(reply, state.channel, state.ts)
     messages = ChatGPT.add_assistant_message(messages, reply)
 
     {:noreply, state |> Map.put(:messages, messages)}
   end
 
-  def handle_cast({:thread_post, message}, state) do
-    ChatGPT.add_user_message(state.messages, message)
+  def handle_cast({:thread_post, {message, image_file}}, state) do
+    image_url = download_image_if_present(image_file)
+
+    ChatGPT.add_user_message(state.messages, message, image_url)
     |> case do
       {:ok, messages} ->
         reply = ChatGPT.get_message(messages, state.config)
@@ -50,13 +52,18 @@ defmodule SlackGptbot.Bot do
     end
   end
 
-  def get_first_reply_from_chatgpt(channel, message, config) do
+  def get_first_reply_from_chatgpt(channel, message, image_file, config) do
     channel_prompt = fetch_channel_prompt(channel)
     {user_prompt, user_message} = parse_first_message(message || "")
     {prompt, prompt_as_message} = merge_prompt(channel_prompt, user_prompt)
     user_message = Enum.join([prompt_as_message, user_message], "\n")
 
-    messages = ChatGPT.create_first_messages(prompt, user_message)
+    image_url = download_image_if_present(image_file)
+
+    messages =
+      ChatGPT.create_first_messages(prompt, user_message)
+      |> update_last_message_with_image(image_url)
+
     reply = ChatGPT.get_message(messages, config)
 
     {messages, reply}
@@ -205,5 +212,33 @@ defmodule SlackGptbot.Bot do
     ind = Kernel.rem(num, size)
 
     Enum.at(list, ind)
+  end
+
+  defp download_image_if_present(nil), do: nil
+
+  defp download_image_if_present(image_file) when is_map(image_file) do
+    case Slack.download_file(image_file) do
+      {:ok, data_uri} -> data_uri
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp update_last_message_with_image(messages, nil), do: messages
+
+  defp update_last_message_with_image(messages, image_url) when is_binary(image_url) do
+    case List.pop_at(messages, -1) do
+      {nil, _} ->
+        messages
+
+      {%{"role" => "user", "content" => text} = last_message, rest} when is_binary(text) ->
+        updated_content = [
+          %{"type" => "text", "text" => text},
+          %{"type" => "image_url", "image_url" => %{"url" => image_url}}
+        ]
+        rest ++ [%{last_message | "content" => updated_content}]
+
+      _ ->
+        messages
+    end
   end
 end
