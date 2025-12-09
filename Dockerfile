@@ -1,4 +1,4 @@
-FROM elixir:1.14
+FROM elixir:1.19
 
 WORKDIR /app
 ENV MIX_ENV=prod
