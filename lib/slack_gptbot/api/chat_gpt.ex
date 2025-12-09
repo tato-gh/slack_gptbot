@@ -50,15 +50,11 @@ defmodule SlackGptbot.API.ChatGPT do
   end
 
   def add_user_message(messages, message, image_url) when is_binary(image_url) do
-    content = build_content_with_image(message, image_url)
-    {:ok, messages ++ [%{"role" => "user", "content" => content}]}
-  end
-
-  defp build_content_with_image(message, image_url) do
-    [
+    content = [
       %{"type" => "text", "text" => message},
       %{"type" => "image_url", "image_url" => %{"url" => image_url}}
     ]
+    {:ok, messages ++ [%{"role" => "user", "content" => content}]}
   end
 
   def get_message(messages, config \\ %{}) do

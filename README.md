@@ -40,4 +40,5 @@ iex -S mix run
 - im:history
 - im:write
 - reactions:write
+- file:read
 

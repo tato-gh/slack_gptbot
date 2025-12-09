@@ -27,3 +27,5 @@ slack_gptbot-*.tar
 
 fly.toml
 .env
+
+/priv/

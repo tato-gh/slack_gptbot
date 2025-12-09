@@ -30,7 +30,7 @@ defmodule SlackGptbot.Bot do
     # stream未対応のため先にリアクションで応答
     Slack.send_reaction(state.channel, "robot_face", state.ts)
     # 本対応
-    {messages, reply} = get_first_reply_from_chatgpt(state.channel, message, image_file, state.config)
+    {_uuid, messages, reply} = get_first_reply_from_chatgpt(state.channel, message, image_file, state.config)
     Slack.send_message(reply, state.channel, state.ts)
     messages = ChatGPT.add_assistant_message(messages, reply)
 
@@ -38,7 +38,7 @@ defmodule SlackGptbot.Bot do
   end
 
   def handle_cast({:thread_post, {message, image_file}}, state) do
-    image_url = download_image_if_present(image_file)
+    {_uuid, image_url} = download_image_if_present(image_file)
 
     ChatGPT.add_user_message(state.messages, message, image_url)
     |> case do
@@ -46,6 +46,7 @@ defmodule SlackGptbot.Bot do
         reply = ChatGPT.get_message(messages, state.config)
         Slack.send_message(reply, state.channel, state.ts)
         messages = ChatGPT.add_assistant_message(messages, reply)
+
         {:noreply, state |> Map.put(:messages, messages)}
       {:nothing, messages} ->
         {:noreply, state |> Map.put(:messages, messages)}
@@ -58,7 +59,7 @@ defmodule SlackGptbot.Bot do
     {prompt, prompt_as_message} = merge_prompt(channel_prompt, user_prompt)
     user_message = Enum.join([prompt_as_message, user_message], "\n")
 
-    image_url = download_image_if_present(image_file)
+    {uuid, image_url} = download_image_if_present(image_file)
 
     messages =
       ChatGPT.create_first_messages(prompt, user_message)
@@ -66,7 +67,7 @@ defmodule SlackGptbot.Bot do
 
     reply = ChatGPT.get_message(messages, config)
 
-    {messages, reply}
+    {uuid, messages, reply}
   end
 
   def direct_handlable_channel?(channel) do
@@ -214,12 +215,12 @@ defmodule SlackGptbot.Bot do
     Enum.at(list, ind)
   end
 
-  defp download_image_if_present(nil), do: nil
+  defp download_image_if_present(nil), do: {nil, nil}
 
   defp download_image_if_present(image_file) when is_map(image_file) do
     case Slack.download_file(image_file) do
-      {:ok, data_uri} -> data_uri
-      {:error, _reason} -> nil
+      {:ok, uuid, public_url} -> {uuid, public_url}
+      {:error, _reason} -> {nil, nil}
     end
   end
 

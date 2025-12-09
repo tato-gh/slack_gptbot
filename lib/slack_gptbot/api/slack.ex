@@ -56,12 +56,19 @@ defmodule SlackGptbot.API.Slack do
     end
   end
 
-  def download_file(%{"url_private" => url_private, "mimetype" => mimetype}) do
-    with {:ok, response} <- download_from_slack(url_private),
-         {:ok, base64_data} <- encode_to_base64(response.body) do
-      {:ok, build_data_uri(mimetype, base64_data)}
+  def download_file(%{"url_private_download" => url, "mimetype" => mimetype}) do
+    require Logger
+    Logger.debug("Downloading file from url_private_download: #{url}, mimetype=#{mimetype}")
+
+    with {:ok, response} <- download_from_slack(url),
+         _ = Logger.debug("Download response status: #{response.status}, content-type: #{inspect(response.headers["content-type"])}, body size: #{byte_size(response.body)}"),
+         {:ok, uuid, public_url} <- SlackGptbot.TempFile.save(response.body, mimetype) do
+      Logger.debug("File saved: uuid=#{uuid}, public_url=#{public_url}")
+      {:ok, uuid, public_url}
     else
-      {:error, reason} -> {:error, reason}
+      {:error, reason} ->
+        Logger.error("Failed to download file: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 
@@ -75,16 +82,6 @@ defmodule SlackGptbot.API.Slack do
       redirect: true,
       max_redirects: 5
     )
-  end
-
-  defp encode_to_base64(binary_data) when is_binary(binary_data) do
-    {:ok, Base.encode64(binary_data)}
-  end
-
-  defp encode_to_base64(_), do: {:error, :invalid_binary_data}
-
-  defp build_data_uri(mimetype, base64_data) do
-    "data:#{mimetype};base64,#{base64_data}"
   end
 
   defp req_post(url, data) do

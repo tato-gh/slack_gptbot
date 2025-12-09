@@ -70,8 +70,8 @@ defmodule SlackGptbot.BotDirector do
 
   def handle_cast({:own_first_post, channel}, state) do
     # botから送るためのメッセージを取得（画像なし）
-    # {messages, reply} = SlackGptbot.Bot.get_first_reply_from_chatgpt(channel, "どうぞ", nil, %{model: "gpt-4"})
-    {messages, reply} = SlackGptbot.Bot.get_first_reply_from_chatgpt(channel, "どうぞ", nil, %{})
+    # {uuid, messages, reply} = SlackGptbot.Bot.get_first_reply_from_chatgpt(channel, "どうぞ", nil, %{model: "gpt-4"})
+    {_uuid, messages, reply} = SlackGptbot.Bot.get_first_reply_from_chatgpt(channel, "どうぞ", nil, %{})
     # slackの動的に送り会話識別子(ts)を入手
     ts = SlackGptbot.API.Slack.send_message(reply, channel, nil)
 
